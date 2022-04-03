@@ -1,0 +1,166 @@
+---
+title: "Diversity Code for Current Biology 2017"
+author: "Gail Ashton"
+date: '`r paste("Created on", format(Sys.Date(), "%d %B, %Y"))`'
+output:
+  word_document: default
+---
+
+```{r knitr, include=F, cache=F}
+knitr::opts_chunk$set(echo=T, tidy.opts = list(width.cutoff = 60), tidy = T)
+```
+
+```{r loadpackages, include=F, message=F, warning=F}
+require(dplyr)
+require(ggplot2)
+require(vegan)
+require(tidyverse)
+require(grid)
+require(ggpubr)
+require(PMCMRplus)
+```
+
+Note, all code is run on the All taxa data followed by the data without Frug
+```{r, echo=F,message=F, warning=F}
+#Frug included:
+PtCt<-read.csv("./RawData/PointCountsMay16.csv")
+PtCt$Treatment<-recode_factor (PtCt$Treatment,"1"="+1","2"="+2","4"="Control") 
+PtCt$Plate<-factor(PtCt$Plate)
+#Create new data frame with Frug excluded
+PtCt2<-subset(PtCt, select=-c(Fenestrulina.rugula))
+```
+
+# Diversity summary stats
+```{r, echo=F,message=F, warning=F}
+DivData<-PtCt[,1:2]
+DivData2<-PtCt2[,1:2]
+
+#Calculate SppRichness (values>0), Shannons, Simpsons & Evenness
+DivData$SppCt<-rowSums(PtCt[,-c(1:2)]>0)
+DivData$Shannons<-diversity(PtCt[,-c(1:2)],index="shannon",MARGIN=1)
+DivData$Simpsons<-diversity(PtCt[,-c(1:2)],index="simpson",MARGIN=1)
+DivData$Evenness<-diversity(PtCt[,-c(1:2)],index="shannon",MARGIN=1)/log(apply(PtCt[,-c(1:2)]>0,1,sum))
+#As above without Frug
+DivData2$SppCt<-rowSums(PtCt2[,-c(1:2)]>0)
+DivData2$Shannons<-diversity(PtCt2[,-c(1:2)],index="shannon",MARGIN=1)
+DivData2$Simpsons<-diversity(PtCt2[,-c(1:2)],index="simpson",MARGIN=1)
+DivData2$Evenness<-diversity(PtCt2[,-c(1:2)],index="shannon",MARGIN=1)/log(apply(PtCt[,-c(1:2)]>0,1,sum))
+```
+
+Summary stats with all species
+```{r, echo=F,message=F, warning=F}
+#Summary stats by Treatment
+knitr::kable(DivData%>% 
+  group_by(Treatment)%>%
+  summarise(meanSh=mean(Shannons),
+      sdSh=sd(Shannons),
+      meanSi=mean(Simpsons),
+      sdSi=sd(Simpsons),
+      meanEve=mean(Evenness),
+      sdEve=sd(Evenness)))
+```
+
+Summary stats without Fenestrulina rugula
+```{r, echo=F,message=F, warning=F}
+#As above without Frug
+knitr::kable(DivData2%>% 
+  group_by(Treatment)%>%
+  summarise(meanSh=mean(Shannons),
+      sdSh=sd(Shannons),
+      meanSi=mean(Simpsons),
+      sdSi=sd(Simpsons),
+      meanEve=mean(Evenness),
+      sdEve=sd(Evenness)))
+```
+
+#### Kruskal Wallis tests between Treatments
+```{r, echo=T,message=F, warning=F}
+#K-W test for diff.s among Treatments
+kruskal.test(DivData$Shannons,DivData$Treatment)
+kwAllPairsNemenyiTest(DivData$Shannons~DivData$Treatment)
+
+kruskal.test(DivData$Simpsons,DivData$Treatment)
+kwAllPairsNemenyiTest(DivData$Simpsons~DivData$Treatment)
+
+kruskal.test(DivData$Evenness,DivData$Treatment)
+kwAllPairsNemenyiTest(DivData$Evenness~DivData$Treatment)
+
+kruskal.test(DivData$SppCt,DivData$Treatment)
+kwAllPairsNemenyiTest(DivData$SppCt~DivData$Treatment)
+
+#K-W test for diff.s among Treatments (w/o F.rugula)
+kruskal.test(DivData2$Shannons,DivData$Treatment)
+kwAllPairsNemenyiTest(DivData2$Shannons~DivData$Treatment)
+
+kruskal.test(DivData2$Simpsons,DivData$Treatment)
+kwAllPairsNemenyiTest(DivData2$Simpsons~DivData$Treatment)
+
+kruskal.test(DivData2$Evenness,DivData$Treatment)
+kwAllPairsNemenyiTest(DivData2$Evenness~DivData$Treatment)
+
+kruskal.test(DivData2$SppCt,DivData$Treatment)
+kwAllPairsNemenyiTest(DivData2$SppCt~DivData$Treatment)
+
+```
+
+#### Box Plot Spp Richness, Simpsons & Evenness by Treatment
+
+```{r Figs, echo=F,message=F, warning=F}
+A = ggplot(DivData,aes (Treatment,SppCt)) +
+  geom_boxplot(aes(colour=Treatment))+
+  scale_color_manual(values=c("orange","red","black"))+
+  scale_fill_discrete("Treatment",breaks=c(1,2,3,4),
+        labels=c("+1degC","+2degC","SummerOnly","Control"),drop=FALSE)+
+  labs(title='Species Richness')+
+  theme(legend.position="none",
+        plot.title=element_text(size=5))
+ 
+B = ggplot(DivData,aes (Treatment,Simpsons)) +
+  geom_boxplot(aes(colour=Treatment))+
+  scale_color_manual(values=c("orange","red","black"))+
+  scale_fill_discrete("Treatment",breaks=c(1,2,3,4),
+        labels=c("+1degC","+2degC","SummerOnly","Control"),drop=FALSE)+
+  labs(title='Simpsons Diversity Index')+
+  theme(legend.position="none",
+        plot.title=element_text(size=5))
+
+C = ggplot(DivData,aes (Treatment,Evenness)) +
+  geom_boxplot(aes(colour=Treatment))+
+  scale_color_manual(values=c("orange","red","black"))+
+  scale_fill_discrete("Treatment",breaks=c(1,2,3,4),
+        labels=c("+1degC","+2degC","SummerOnly","Control"),drop=FALSE)+
+  labs(title='Evenness Index')+
+  theme(legend.position="none",
+        plot.title=element_text(size=5))
+
+D = ggplot(DivData2,aes (Treatment,SppCt)) +
+  geom_boxplot(aes(colour=Treatment))+
+  scale_color_manual(values=c("orange","red","black"))+
+  scale_fill_discrete("Treatment",breaks=c(1,2,3,4),
+        labels=c("+1degC","+2degC","SummerOnly","Control"),drop=FALSE)+
+  labs(title='Species Richness')+
+  theme(legend.position="none",
+        plot.title=element_text(size=5))
+
+E = ggplot(DivData2,aes (Treatment,Simpsons)) +
+  geom_boxplot(aes(colour=Treatment))+
+  scale_color_manual(values=c("orange","red","black"))+
+  scale_fill_discrete("Treatment",breaks=c(1,2,3,4),
+        labels=c("+1degC","+2degC","SummerOnly","Control"),drop=FALSE)+
+  labs(title='Simpsons Diversity Index')+
+  theme(legend.position="none",
+        plot.title=element_text(size=5))
+
+G = ggplot(DivData2,aes (Treatment,Evenness)) +
+  geom_boxplot(aes(colour=Treatment))+
+  scale_color_manual(values=c("orange","red","black"))+
+  scale_fill_discrete("Treatment",breaks=c(1,2,3,4),
+          labels=c("+1degC","+2degC","SummerOnly","Control"),drop=FALSE)+
+  labs(title='Evenness Index')+
+  theme(legend.position="none",
+        plot.title=element_text(size=5))
+
+Fig1 <- ggarrange(A,D,B,E,C,G, nrow=3, ncol=2)
+
+Fig1
+```
